@@ -32,12 +32,16 @@ jobs:
           git checkout beta
           gclient sync --with_branch_heads --with_tags -f
 
-      - name: Apply Branding (Chromium Revamped)
+      - name: Apply Branding & Custom Icon (Chromium Revamped)
         run: |
           cd src
-          # Altera o nome do app nos recursos para Chromium Revamped
+          # Altera o nome do aplicativo
           sed -i 's/<string name="app_name">Chromium<\/string>/<string name="app_name">Chromium Revamped<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
           sed -i 's/app_name">Chromium/app_name">Chromium Revamped/g' chrome/app/theme/chromium/strings_grd/BUILD.gn || true
+
+          # Copia os novos ícones sobrepondo os originais do Chromium Beta
+          RESOURCE_DIR="chrome/android/java/res_chromium_beta"
+          cp -rf ../meus_icones/res/* "$RESOURCE_DIR/" || true
 
       - name: Configure and Build Beta APK
         run: |
@@ -45,7 +49,6 @@ jobs:
           cd src
           mkdir -p out/Default
           
-          # Configuração de flags para Android Beta (arm64)
           cat << 'EOF' > out/Default/args.gn
           target_os = "android"
           target_cpu = "arm64"
