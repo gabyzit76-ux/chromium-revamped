@@ -33,7 +33,7 @@ jobs:
       - name: 5. Instalar o Google Depot Tools
         run: |
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools
-          echo "export PATH=\$PATH:\$HOME/depot_tools" >> \$GITHUB_ENV
+          echo "$HOME/depot_tools" >> $GITHUB_PATH
 
       - name: 6. Configurar Variáveis de Ambiente do Git
         run: |
@@ -68,18 +68,18 @@ jobs:
       - name: 11. Aplicar Marca e Alterar Nome para Revamp Browser
         run: |
           cd ~/chromium-revamped/src
-          sed -i 's/<string name=\"app_name\">Chromium<\/string>/<string name=\"app_name\">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
-          sed -i 's/<string name=\"app_name_beta\">Chromium Beta<\/string>/<string name=\"app_name_beta\">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
+          sed -i 's/<string name="app_name">Chromium<\/string>/<string name="app_name">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
+          sed -i 's/<string name="app_name_beta">Chromium Beta<\/string>/<string name="app_name_beta">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
 
       - name: 12. Injetar Ícones Personalizados do Repositório
         run: |
           cd ~/chromium-revamped/src
-          RESOURCE_DIR=\"chrome/android/java/res_chromium_beta\"
-          if [ -d \"\$GITHUB_WORKSPACE/meus_icones/res\" ]; then
-            cp -rf \"\$GITHUB_WORKSPACE/meus_icones/res/\"* \"\$RESOURCE_DIR/\" || true
-            print('✅ Ícones personalizados aplicados com sucesso.')
+          RESOURCE_DIR="chrome/android/java/res_chromium_beta"
+          if [ -d "$GITHUB_WORKSPACE/meus_icones/res" ]; then
+            cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/" || true
+            echo "✅ Ícones personalizados aplicados com sucesso."
           else
-            print('ℹ️ Nenhum ícone customizado encontrado em meus_icones/res, seguindo com padrão.')
+            echo "ℹ️ Nenhum ícone customizado encontrado em meus_icones/res, seguindo com padrão."
           fi
 
       - name: 13. Redirecionar URL da Nova Guia para o Alvo Desejado
