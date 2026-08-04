@@ -1,0 +1,64 @@
+name: Build Chromium Revamped (Beta)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf /usr/lib/jvm
+
+      - name: Install Depot Tools
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+
+      - name: Fetch Chromium Beta Source
+        run: |
+          export PATH="$GITHUB_WORKSPACE/depot_tools:$PATH"
+          fetch --nohooks android
+          cd src
+          git checkout beta
+          gclient sync --with_branch_heads --with_tags -f
+
+      - name: Apply Branding (Chromium Revamped)
+        run: |
+          cd src
+          # Altera o nome do app nos recursos para Chromium Revamped
+          sed -i 's/<string name="app_name">Chromium<\/string>/<string name="app_name">Chromium Revamped<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
+          sed -i 's/app_name">Chromium/app_name">Chromium Revamped/g' chrome/app/theme/chromium/strings_grd/BUILD.gn || true
+
+      - name: Configure and Build Beta APK
+        run: |
+          export PATH="$GITHUB_WORKSPACE/depot_tools:$PATH"
+          cd src
+          mkdir -p out/Default
+          
+          # Configuração de flags para Android Beta (arm64)
+          cat << 'EOF' > out/Default/args.gn
+          target_os = "android"
+          target_cpu = "arm64"
+          is_debug = false
+          official_build = true
+          chrome_public_manifest_package = "org.chromium.chrome.beta"
+          EOF
+
+          gn gen out/Default
+          autoninja -C out/Default chrome_public_apk
+
+      - name: Upload Chromium Revamped APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chromium-Revamped-Beta-arm64
+          path: src/out/Default/apks/ChromePublic.apk
