@@ -9,92 +9,64 @@ jobs:
     env:
       ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
-      - name: 1. Clonar Repositório do Projeto
+      - name: 1. Clonar Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Exibir Espaço em Disco Inicial
-        run: df -h
-
-      - name: 3. Faxina Extrema no Sistema (Liberar 100+ GB)
+      - name: 2. Faxina no Disco
         run: |
-          echo "Removendo pacotes pesados desnecessários..."
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
           sudo docker system prune -a --volumes -f
           sudo apt-get clean
-          sudo apt-get purge -y azure-cli google-cloud-cli hhvm google-chrome-stable microsoft-edge-stable firefox powershell
+          sudo apt-get purge -y azure-cli google-cloud-cli google-chrome-stable microsoft-edge-stable firefox powershell || true
           df -h
 
-      - name: 4. Instalar Dependências do Sistema Atualizadas
+      - name: 3. Instalar Dependências Essenciais
         run: |
           sudo apt-get update
           sudo apt-get install -y curl git python3 python3-pip lsb-release sudo tzdata build-essential ninja-build
 
-      - name: 5. Instalar o Google Depot Tools
+      - name: 4. Instalar Depot Tools
         run: |
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
-      - name: 6. Configurar Variáveis de Ambiente do Git
+      - name: 5. Configurar Git
         run: |
           git config --global user.name "Revamp Builder"
           git config --global user.email "builder@revamp.local"
 
-      - name: 7. Criar Diretório de Trabalho do Chromium
-        run: mkdir -p ~/chromium-revamped
-
-      - name: 8. Baixar Código-Fonte do Chromium (Modo Otimizado e Superficial)
+      - name: 6. Baixar Código-Fonte (Shallow)
         run: |
+          mkdir -p ~/chromium-revamped
           cd ~/chromium-revamped
           fetch --nohooks --no-history android
 
-      - name: 9. Sincronizar Dependências do Gclient (Shallow e Sem Histórico)
+      - name: 7. Sincronizar Dependências
         run: |
           cd ~/chromium-revamped
           gclient sync --no-history --shallow --jobs 16 --nohooks
-
-      - name: 9.1. Executar Hooks do Gclient para Inicializar Ferramentas
-        run: |
-          cd ~/chromium-revamped
           gclient runhooks
 
-      - name: 10. Validar Estrutura de Pastas com IA Guardiã
-        run: |
-          python3 -c "
-          import os
-          src_path = os.path.expanduser('~/chromium-revamped/src')
-          if os.path.exists(src_path):
-              print('✅ IA Guardiã: Árvore fonte do Chromium verificada e aprovada.')
-          else:
-              print('❌ ERRO CRÍTICO: Pasta src do Chromium ausente.')
-              exit(1)
-          "
-
-      - name: 11. Aplicar Marca e Alterar Nome para Revamp Browser
+      - name: 8. Aplicar Marca Revamp Browser
         run: |
           cd ~/chromium-revamped/src
           sed -i 's/<string name="app_name">Chromium<\/string>/<string name="app_name">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
           sed -i 's/<string name="app_name_beta">Chromium Beta<\/string>/<string name="app_name_beta">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
 
-      - name: 12. Injetar Ícones Personalizados do Repositório (Com Verificação Segura)
+      - name: 9. Injetar Ícones (Se Existirem)
         run: |
           cd ~/chromium-revamped/src
           RESOURCE_DIR="chrome/android/java/res_chromium_beta"
           if [ -d "$GITHUB_WORKSPACE/meus_icones/res" ]; then
             cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/" || true
-            echo "✅ Ícones personalizados aplicados com sucesso."
-          else
-            echo "ℹ️ Nenhum ícone customizado encontrado em meus_icones/res, seguindo com padrão."
           fi
 
-      - name: 13. Redirecionar URL da Nova Guia para o Alvo Desejado
+      - name: 10. Redirecionar Nova Guia
         run: |
           cd ~/chromium-revamped/src
           sed -i 's|chrome://newtab/|https://google.com|g' chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPage.java || true
 
-      - name: 14. Gerar Configuração de Build Otimizada e Enxuta (args.gn)
+      - name: 11. Gerar args.gn Enxuto
         run: |
           cd ~/chromium-revamped/src
           mkdir -p out/Default
@@ -109,8 +81,6 @@ jobs:
           blink_symbol_level = 0
           disable_fieldtrial_testing_config = true
           exclude_unwind_tables = true
-
-          # --- REMOÇÃO RADICAL DE GORDURA (NAVEGAÇÃO PURA) ---
           enable_remoting = false
           enable_media_router = false
           enable_print_preview = false
@@ -125,38 +95,28 @@ jobs:
           enable_feed_v2 = false
           enable_lens_desktop_google_brand_results = false
           use_custom_libcxx = false
-
-          # --- PRIVACIDADE E CORTE TOTAL DE TELEMETRIA ---
           enable_metrics_reporting = false
           chrome_pgo_phase = 0
           metrics_default_enable = false
           enable_library_cdms = false
-
-          # --- CONFIGURAÇÕES DE PACOTE E MANIFESTO ---
           official_build = true
           chrome_public_manifest_package = "org.chromium.chrome.beta"
           enable_subresource_filter = true
           ARG_EOF
 
-      - name: 15. Processar Metadados de Compilação com GN
+      - name: 12. Processar com GN
         run: |
           cd ~/chromium-revamped/src
           gn gen out/Default
 
-      - name: 16. Compilar o APK do Revamp Browser (Ninja Build)
+      - name: 13. Compilar APK com Ninja
         run: |
           cd ~/chromium-revamped/src
           ninja -C out/Default chrome_public_apk
 
-      - name: 17. Localizar e Organizar APK Compilado
-        run: |
-          cd ~/chromium-revamped/src
-          mkdir -p output_apk
-          cp out/Default/apks/ChromePublic.apk output_apk/RevampBrowser.apk
-          ls -lh output_apk/RevampBrowser.apk
-
-      - name: 18. Fazer Upload do APK como Artefato do Workflow
+      - name: 14. Enviar APK como Artefato
         uses: actions/upload-artifact@v4
         with:
           name: RevampBrowser-APK
-          path: ~/chromium-revamped/src/output_apk/RevampBrowser.apk
+          path: ~/chromium-revamped/src/out/Default/apks/ChromePublic.apk
+          
