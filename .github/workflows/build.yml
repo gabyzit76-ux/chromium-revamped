@@ -65,7 +65,7 @@ jobs:
         run: |
           cd ~/chromium-revamped/src
           sed -i 's|chrome://newtab/|https://google.com|g' chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPage.java || true
-
+          
       - name: 11. Gerar args.gn Enxuto
         run: |
           cd ~/chromium-revamped/src
@@ -95,6 +95,7 @@ jobs:
           enable_feed_v2 = false
           enable_lens_desktop_google_brand_results = false
           use_custom_libcxx = false
+          use_safe_libcxx = true
           enable_metrics_reporting = false
           chrome_pgo_phase = 0
           metrics_default_enable = false
