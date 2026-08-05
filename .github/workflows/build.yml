@@ -113,10 +113,10 @@ jobs:
         run: |
           cd ~/revamp-browser/src
           ninja -C out/Default chrome_public_apk
-
+      
       - name: 14. Enviar APK como Artefato
         uses: actions/upload-artifact@v4
         with:
           name: RevampBrowser-APK
-          path: ~/revamp-browser/src/out/Default/apks/ChromePublic.apk
-        
+          path: ~/revamp-browser/src/out/Default/apks/*.apk
+          
