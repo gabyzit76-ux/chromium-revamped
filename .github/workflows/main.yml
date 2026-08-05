@@ -1,0 +1,89 @@
+name: Build Revamp Konsole GUI (Unificado & Boot Auto)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout do Repositório do Workflow
+        uses: actions/checkout@v4
+
+      - name: 2. Clonar Base Oficial Mais Recente do Termux App
+        run: |
+          git clone --depth 1 https://github.com/termux/termux-app.git ~/termux-src
+
+      - name: 3. Configurar Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 4. Configurar Android SDK e NDK
+        uses: android-actions/setup-android@v3
+
+      - name: 5. Renomear Aplicação para Revamp Konsole GUI
+        run: |
+          cd ~/termux-src
+          find app/src/main/res -name "strings.xml" -exec sed -i 's/<string name="app_name">Termux<\/string>/<string name="app_name">Revamp Konsole GUI<\/string>/g' {} + || true
+
+      - name: 6. Injetar Ícones Personalizados Unificados
+        run: |
+          RESOURCE_DIR="$HOME/termux-src/app/src/main/res"
+          if [ -d "$GITHUB_WORKSPACE/meus_icones/res" ]; then
+            mkdir -p "$RESOURCE_DIR"
+            cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/"
+          fi
+
+      - name: 7. Baixar Alpine Linux e Injetar Script de Boot
+        run: |
+          ASSETS_DIR="$HOME/termux-src/app/src/main/assets"
+          mkdir -p "$ASSETS_DIR"
+          curl -Lo "$ASSETS_DIR/alpine-rootfs.tar.gz" https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64/alpine-minirootfs-3.20.0-aarch64.tar.gz
+          if [ -f "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" ]; then cp "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" "$ASSETS_DIR/wallpaper.jpg"; fi
+
+          ENTRY="$ASSETS_DIR/entrypoint.sh"
+          echo '#!/bin/sh' > "$ENTRY"
+          echo 'pkill -9 -f "xorg|xfce|wayland|proot|zsh" > /dev/null 2>&1 || true' >> "$ENTRY"
+          echo 'if [ ! -f "/usr/bin/xfce4-session" ]; then apk update && apk add --no-cache zsh git github-cli curl wget sudo coreutils findutils grep bash nano tar xorg-server xfce4 xfce4-terminal feh dbus mesa-dri-gallium chromium nss freetype harfbuzz ca-certificates ttf-freefont; fi' >> "$ENTRY"
+          echo 'if [ ! -d "$HOME/.oh-my-zsh" ]; then sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended || true; fi' >> "$ENTRY"
+          echo 'mkdir -p /usr/share/applications/' >> "$ENTRY"
+          echo 'echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Revamp Browser\nExec=am start -a android.intent.action.VIEW -d https://google.com org.chromium.chrome.beta\nIcon=web-browser\nTerminal=false\nCategories=Network;WebBrowser;" > /usr/share/applications/revamp-browser.desktop' >> "$ENTRY"
+          echo 'echo "#!/bin/sh\nURL=\$1\n[ -z \"\$URL\" ] && URL=\"https://google.com\"\nam start -a android.intent.action.VIEW -d \"\$URL\" org.chromium.chrome.beta > /dev/null 2>&1" > /usr/bin/revamp-open' >> "$ENTRY"
+          echo 'chmod +x /usr/bin/revamp-open' >> "$ENTRY"
+          echo 'echo "#!/bin/sh\nif [ \$(id -u) -eq 0 ]; then exec \"\$@\"; else exec proot -0 \"\$@\"; fi" > /usr/bin/sudo' >> "$ENTRY"
+          echo 'chmod +x /usr/bin/sudo' >> "$ENTRY"
+          echo 'sed -i -e "s/root:\/bin\/ash/root:\/bin\/zsh/g" /etc/passwd || true' >> "$ENTRY"
+          echo 'echo "export TERM=xterm-256color\nexport DISPLAY=:0\nexport CHROME_BIN=/usr/bin/chromium-browser\nalias open=revamp-open\nalias chrome=\"chromium-browser --headless --disable-gpu\"\nalias revamp=\"echo Revamp Konsole GUI\"\nPROMPT=\"%F{cyan}󰄛 revamp-gui%f:%F{yellow}%~%f %# \"" > ~/.zshrc' >> "$ENTRY"
+          echo 'export DISPLAY=:0' >> "$ENTRY"
+          echo 'export PULSE_SERVER=127.0.0.1' >> "$ENTRY"
+          echo 'if [ -f "/data/data/com.termux/files/usr/share/wallpaper.jpg" ]; then feh --bg-fill /data/data/com.termux/files/usr/share/wallpaper.jpg & fi' >> "$ENTRY"
+          echo 'exec startxfce4' >> "$ENTRY"
+          chmod +x "$ENTRY"
+
+      - name: 8. Configurar Auto-Start Nativo
+        run: |
+          TERMUX_BASHRC="$HOME/termux-src/app/src/main/assets/boot/boot.sh"
+          mkdir -p "$HOME/termux-src/app/src/main/assets/boot"
+          echo '#!/bin/sh' > "$TERMUX_BASHRC"
+          echo 'exec sh /data/data/com.termux/files/usr/entrypoint.sh' >> "$TERMUX_BASHRC"
+          chmod +x "$TERMUX_BASHRC"
+
+      - name: 9. Aceitar Licenças do Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: 10. Compilar APK Unificado com Gradle
+        run: |
+          cd ~/termux-src
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: 11. Enviar APK como Artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: RevampKonsoleGUI-APK
+          path: ~/termux-src/app/build/outputs/apk/debug/*.apk
+          
