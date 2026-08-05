@@ -40,7 +40,10 @@ jobs:
         run: |
           ASSETS_DIR="$HOME/termux-src/app/src/main/assets"
           mkdir -p "$ASSETS_DIR/internal"
+          
+          curl --retry 5 -fL "https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/aarch64/alpine-minirootfs-3.20.3-aarch64.tar.gz" -o "$ASSETS_DIR/internal/alpine-rootfs.bin" || \
           curl --retry 5 -fL "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64/alpine-minirootfs-3.20.0-aarch64.tar.gz" -o "$ASSETS_DIR/internal/alpine-rootfs.bin"
+
           if [ -f "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" ]; then cp "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" "$ASSETS_DIR/wallpaper.jpg"; fi
           ENTRY="$ASSETS_DIR/entrypoint.sh"
           echo '#!/bin/sh' > "$ENTRY"
