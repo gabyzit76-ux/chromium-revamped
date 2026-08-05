@@ -1,3 +1,13 @@
+      - name: 9. Injetar Ícones (Se Existirem)
+        run: |
+          cd ~/revamp-browser/src
+          RESOURCE_DIR="chrome/android/java/res_chromium_beta"
+          if [ -d "$GITHUB_WORKSPACE/meus_icones/res" ]; then
+            cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/" || true
+          fi
+          
+
+
 ---++🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧
 - *THIS IS THE ONLY SAFE PLACE FOR DOWNLOAD IT.⚠️🚨*
 -------------------------++
