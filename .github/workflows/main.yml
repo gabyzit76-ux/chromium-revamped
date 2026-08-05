@@ -26,7 +26,7 @@ jobs:
       - name: 5. Personalizar ID do App e Nome para Revamp Konsole GUI
         run: |
           cd ~/termux-src
-          find app/ -type f \( -name "build.gradle*" -o -name "AndroidManifest.xml" \) -exec sed -i 's/com.termux/com.revamp.konsole.gui/g' {} + || true
+          find app/ -type f \( -name "build.gradle*" -o -name "AndroidManifest.xml" \) -exec sed -i 's/com\.termux/com.revamp.konsole.gui/g' {} + || true
           find app/src/main/res -name "strings.xml" -exec sed -i 's/<string name="app_name">Termux<\/string>/<string name="app_name">Revamp Konsole GUI<\/string>/g' {} + || true
 
       - name: 6. Injetar Icones Personalizados
