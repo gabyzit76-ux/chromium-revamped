@@ -26,11 +26,7 @@ jobs:
       - name: 5. Personalizar ID do App e Nome para Revamp Konsole GUI
         run: |
           cd ~/termux-src
-          
-          # Renomear o ID do pacote para evitar conflito de "Pacote Inválido" com o Termux original
           find app/ -type f \( -name "build.gradle*" -o -name "AndroidManifest.xml" \) -exec sed -i 's/com.termux/com.revamp.konsole.gui/g' {} + || true
-          
-          # Trocar o nome de exibição nas strings do Android
           find app/src/main/res -name "strings.xml" -exec sed -i 's/<string name="app_name">Termux<\/string>/<string name="app_name">Revamp Konsole GUI<\/string>/g' {} + || true
 
       - name: 6. Injetar Icones Personalizados
@@ -41,7 +37,7 @@ jobs:
             cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/"
           fi
 
-      - name: 7. Baixar Alpine Linux e Injetar Script de Boot
+      - name: 7. Baixar Alpine Linux e Injetar Script de Boot Correto
         run: |
           ASSETS_DIR="$HOME/termux-src/app/src/main/assets"
           mkdir -p "$ASSETS_DIR/internal"
@@ -49,8 +45,14 @@ jobs:
           curl --retry 5 -fL "https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/aarch64/alpine-minirootfs-3.20.3-aarch64.tar.gz" -o "$ASSETS_DIR/internal/alpine-rootfs.bin" || \
           curl --retry 5 -fL "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64/alpine-minirootfs-3.20.0-aarch64.tar.gz" -o "$ASSETS_DIR/internal/alpine-rootfs.bin"
 
-          if [ -f "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" ]; then cp "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" "$ASSETS_DIR/wallpaper.jpg"; fi
-          ENTRY="$ASSETS_DIR/entrypoint.sh"
+          if [ -f "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" ]; then 
+            cp "$GITHUB_WORKSPACE/meus_icones/wallpaper.jpg" "$ASSETS_DIR/wallpaper.jpg"
+          fi
+
+          BOOT_DIR="$ASSETS_DIR/boot"
+          mkdir -p "$BOOT_DIR"
+          ENTRY="$BOOT_DIR/boot.sh"
+
           echo '#!/bin/sh' > "$ENTRY"
           echo 'pkill -9 -f "xorg|xfce|wayland|proot|zsh" > /dev/null 2>&1 || true' >> "$ENTRY"
           echo 'if [ ! -f "/usr/bin/xfce4-session" ]; then apk update && apk add --no-cache zsh git github-cli curl wget sudo coreutils findutils grep bash nano tar xorg-server xfce4 xfce4-terminal feh dbus mesa-dri-gallium chromium nss freetype harfbuzz ca-certificates ttf-freefont; fi' >> "$ENTRY"
@@ -62,31 +64,31 @@ jobs:
           echo 'echo "#!/bin/sh\nif [ \$(id -u) -eq 0 ]; then exec \"\$@\"; else exec proot -0 \"\$@\"; fi" > /usr/bin/sudo' >> "$ENTRY"
           echo 'chmod +x /usr/bin/sudo' >> "$ENTRY"
           echo 'sed -i -e "s/root:\/bin\/ash/root:\/bin\/zsh/g" /etc/passwd || true' >> "$ENTRY"
-          echo 'echo "export TERM=xterm-256color\nexport DISPLAY=:0\nexport CHROME_BIN=/usr/bin/chromium-browser\nalias open=revamp-open\nalias chrome=\"chromium-browser --headless --disable-gpu\"\nalias revamp=\"echo Revamp Konsole GUI\"\nPROMPT=\"%F{cyan}󰄛 revamp-gui%f:%F{yellow}%~%f %# \"" > ~/.zshrc' >> "$ENTRY"
+          
+          echo 'export TERM=xterm-256color' >> ~/.zshrc
+          echo 'export DISPLAY=:0' >> ~/.zshrc
+          echo 'export CHROME_BIN=/usr/bin/chromium-browser' >> ~/.zshrc
+          echo 'alias open=revamp-open' >> ~/.zshrc
+          echo 'alias chrome="chromium-browser --headless --disable-gpu"' >> ~/.zshrc
+          echo 'alias revamp="echo Revamp Konsole GUI"' >> ~/.zshrc
+          echo 'PROMPT="%F{cyan}󰄛 revamp-gui%f:%F{yellow}%~%f %# "' >> ~/.zshrc
+
           echo 'export DISPLAY=:0' >> "$ENTRY"
           echo 'export PULSE_SERVER=127.0.0.1' >> "$ENTRY"
-          echo 'if [ -f "/data/data/com.revamp.konsole.gui/files/usr/share/wallpaper.jpg" ]; then feh --bg-fill /data/data/com.revamp.konsole.gui/files/usr/share/wallpaper.jpg & fi' >> "$ENTRY"
+          echo 'if [ -f "$HOME/wallpaper.jpg" ]; then feh --bg-fill "$HOME/wallpaper.jpg" & fi' >> "$ENTRY"
           echo 'exec startxfce4' >> "$ENTRY"
           chmod +x "$ENTRY"
 
-      - name: 8. Configurar Boot Automatico Nativo
-        run: |
-          BOOT_DIR="$HOME/termux-src/app/src/main/assets/boot"
-          mkdir -p "$BOOT_DIR"
-          echo '#!/bin/sh' > "$BOOT_DIR/boot.sh"
-          echo 'exec sh /data/data/com.revamp.konsole.gui/files/usr/entrypoint.sh' >> "$BOOT_DIR/boot.sh"
-          chmod +x "$BOOT_DIR/boot.sh"
-
-      - name: 9. Aceitar Licencas do Android SDK
+      - name: 8. Aceitar Licencas do Android SDK
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: 10. Compilar APK Unificado com Gradle
+      - name: 9. Compilar APK Unificado com Gradle
         run: |
           cd ~/termux-src
           chmod +x gradlew
           ./gradlew clean assembleDebug --no-daemon
 
-      - name: 11. Enviar APK como Artefato
+      - name: 10. Enviar APK como Artefato
         uses: actions/upload-artifact@v4
         with:
           name: RevampKonsoleGUI-APK
