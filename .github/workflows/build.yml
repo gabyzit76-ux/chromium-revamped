@@ -37,25 +37,25 @@ jobs:
 
       - name: 6. Baixar Código-Fonte (Shallow)
         run: |
-          mkdir -p ~/chromium-revamped
-          cd ~/chromium-revamped
+          mkdir -p ~/revamp-browser
+          cd ~/revamp-browser
           fetch --nohooks --no-history android
 
       - name: 7. Sincronizar Dependências
         run: |
-          cd ~/chromium-revamped
+          cd ~/revamp-browser
           gclient sync --no-history --shallow --jobs 16 --nohooks
           gclient runhooks
 
       - name: 8. Aplicar Marca Revamp Browser
         run: |
-          cd ~/chromium-revamped/src
+          cd ~/revamp-browser/src
           sed -i 's/<string name="app_name">Chromium<\/string>/<string name="app_name">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
           sed -i 's/<string name="app_name_beta">Chromium Beta<\/string>/<string name="app_name_beta">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
 
       - name: 9. Injetar Ícones (Se Existirem)
         run: |
-          cd ~/chromium-revamped/src
+          cd ~/revamp-browser/src
           RESOURCE_DIR="chrome/android/java/res_chromium_beta"
           if [ -d "$GITHUB_WORKSPACE/meus_icones/res" ]; then
             cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/" || true
@@ -63,12 +63,12 @@ jobs:
 
       - name: 10. Redirecionar Nova Guia
         run: |
-          cd ~/chromium-revamped/src
+          cd ~/revamp-browser/src
           sed -i 's|chrome://newtab/|https://google.com|g' chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPage.java || true
           
-      - name: 11. Gerar args.gn Enxuto
+      - name: 11. Gerar args.gn Enxuto e Compatível
         run: |
-          cd ~/chromium-revamped/src
+          cd ~/revamp-browser/src
           mkdir -p out/Default
           cat << 'ARG_EOF' > out/Default/args.gn
           target_os = "android"
@@ -94,7 +94,6 @@ jobs:
           enable_gcode = false
           enable_feed_v2 = false
           enable_lens_desktop_google_brand_results = false
-          use_custom_libcxx = false
           use_safe_libcxx = true
           enable_metrics_reporting = false
           chrome_pgo_phase = 0
@@ -107,17 +106,17 @@ jobs:
 
       - name: 12. Processar com GN
         run: |
-          cd ~/chromium-revamped/src
+          cd ~/revamp-browser/src
           gn gen out/Default
 
       - name: 13. Compilar APK com Ninja
         run: |
-          cd ~/chromium-revamped/src
+          cd ~/revamp-browser/src
           ninja -C out/Default chrome_public_apk
 
       - name: 14. Enviar APK como Artefato
         uses: actions/upload-artifact@v4
         with:
           name: RevampBrowser-APK
-          path: ~/chromium-revamped/src/out/Default/apks/ChromePublic.apk
-          
+          path: ~/revamp-browser/src/out/Default/apks/ChromePublic.apk
+        
