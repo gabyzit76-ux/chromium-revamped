@@ -1,4 +1,4 @@
-name: Compilar Arch-WM APK (One-Command Workflow)
+name: Compilar Arch-WM APK (Definitivo)
 
 on:
   push:
@@ -13,6 +13,11 @@ jobs:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
+      - name: Validar Arquivos na Raiz
+        run: |
+          echo "Verificando se main.py e buildozer.spec existem:"
+          ls -la
+
       - name: Configurar Java 21 Recente
         uses: actions/setup-java@v5
         with:
@@ -25,7 +30,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Pipeline de Dependências e Buildozer (One-Command)
+      - name: Instalar Dependências e Buildozer
         run: |
           sudo apt-get update && sudo apt-get install -y \
             git zip unzip python3-pip autoconf libtool pkg-config zlib1g-dev \
@@ -33,6 +38,9 @@ jobs:
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
           pip install --upgrade pip
           pip install --upgrade buildozer cython
+
+      - name: Executar Compilação do APK
+        run: |
           buildozer android release
 
       - name: Organizar Artefatos Binários
@@ -45,3 +53,4 @@ jobs:
         with:
           name: ArchWM-Wayland-Final
           path: final_apk/*.apk
+          
