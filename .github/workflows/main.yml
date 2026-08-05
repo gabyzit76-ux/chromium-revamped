@@ -23,10 +23,18 @@ jobs:
       - name: 4. Configurar Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 5. Personalizar ID do App e Nome para Revamp Konsole GUI
+      - name: 5. Personalizar ID do App, Imports Java e Nome
         run: |
           cd ~/termux-src
+          
+          # 1. Atualizar o applicationId e namespace no Gradle e AndroidManifest
           find app/ -type f \( -name "build.gradle*" -o -name "AndroidManifest.xml" \) -exec sed -i 's/com\.termux/com.revamp.konsole.gui/g' {} + || true
+          
+          # 2. Atualizar a referência de pacotes nos arquivos de código fonte Java e Kotlin
+          find app/src/main/java -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/import com\.termux\.R;/import com.revamp.konsole.gui.R;/g' {} + || true
+          find app/src/main/java -type f \( -name "*.java" -o -name "*.kt" \) -exec sed -i 's/import com\.termux\.BuildConfig;/import com.revamp.konsole.gui.BuildConfig;/g' {} + || true
+          
+          # 3. Trocar o nome de exibição do App
           find app/src/main/res -name "strings.xml" -exec sed -i 's/<string name="app_name">Termux<\/string>/<string name="app_name">Revamp Konsole GUI<\/string>/g' {} + || true
 
       - name: 6. Injetar Icones Personalizados
