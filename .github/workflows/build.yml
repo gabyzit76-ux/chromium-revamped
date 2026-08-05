@@ -1,122 +1,47 @@
-name: Build Revamp Browser
+name: Compilar Arch-WM APK (One-Command Workflow)
 
 on:
+  push:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
     steps:
-      - name: 1. Clonar Repositório
+      - name: Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Faxina no Disco
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
-          sudo docker system prune -a --volumes -f
-          sudo apt-get clean
-          sudo apt-get purge -y azure-cli google-cloud-cli google-chrome-stable microsoft-edge-stable firefox powershell || true
-          df -h
+      - name: Configurar Java 21 Recente
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          check-latest: true
 
-      - name: 3. Instalar Dependências Essenciais
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl git python3 python3-pip lsb-release sudo tzdata build-essential ninja-build
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-      - name: 4. Instalar Depot Tools
+      - name: Pipeline de Dependências e Buildozer (One-Command)
         run: |
-          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/depot_tools
-          echo "$HOME/depot_tools" >> $GITHUB_PATH
+          sudo apt-get update && sudo apt-get install -y \
+            git zip unzip python3-pip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libffi-dev libssl-dev \
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+          pip install --upgrade pip
+          pip install --upgrade buildozer cython
+          buildozer android release
 
-      - name: 5. Configurar Git
+      - name: Organizar Artefatos Binários
         run: |
-          git config --global user.name "Revamp Builder"
-          git config --global user.email "builder@revamp.local"
+          mkdir -p final_apk
+          cp bin/*.apk final_apk/
 
-      - name: 6. Baixar Código-Fonte (Shallow)
-        run: |
-          mkdir -p ~/revamp-browser
-          cd ~/revamp-browser
-          fetch --nohooks --no-history android
-
-      - name: 7. Sincronizar Dependências
-        run: |
-          cd ~/revamp-browser
-          gclient sync --no-history --shallow --jobs 16 --nohooks
-          gclient runhooks
-
-      - name: 8. Aplicar Marca Revamp Browser
-        run: |
-          cd ~/revamp-browser/src
-          find chrome/android/java -name "channel_constants.xml" -exec sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">Revamp Browser<\/string>/g' {} + || true
-          find chrome/android/java -name "channel_constants.xml" -exec sed -i 's/<string name="app_name_beta">.*<\/string>/<string name="app_name_beta">Revamp Browser<\/string>/g' {} + || true
-
-      - name: 9. Injetar Ícones (Se Existirem)
-        run: |
-          cd ~/revamp-browser/src
-          RESOURCE_DIR="chrome/android/java/res_chromium_beta"
-          if [ -d "$GITHUB_WORKSPACE/meus_icones/res" ]; then
-            mkdir -p "$RESOURCE_DIR"
-            cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/"
-          fi
-
-      - name: 10. Redirecionar Nova Guia
-        run: |
-          cd ~/revamp-browser/src
-          sed -i 's|chrome://newtab/|https://google.com|g' chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPage.java || true
-          
-      - name: 11. Gerar args.gn Enxuto e Compatível
-        run: |
-          cd ~/revamp-browser/src
-          mkdir -p out/Default
-          cat << 'ARG_EOF' > out/Default/args.gn
-          target_os = "android"
-          target_cpu = "arm64"
-          is_debug = false
-          is_component_build = false
-          symbol_level = 0
-          enable_nacl = false
-          optimize_for_speed = true
-          blink_symbol_level = 0
-          disable_fieldtrial_testing_config = true
-          exclude_unwind_tables = true
-          enable_remoting = false
-          enable_media_router = false
-          enable_print_preview = false
-          enable_swiftshader = false
-          use_qt = false
-          enable_extensions = false
-          enable_pdf = false
-          enable_plugins = false
-          enable_reading_list = false
-          enable_supervised_users = true
-          enable_gcode = false
-          enable_feed_v2 = false
-          enable_lens_desktop_google_brand_results = false
-          use_safe_libcxx = true
-          enable_metrics_reporting = false
-          chrome_pgo_phase = 0
-          metrics_default_enable = false
-          enable_library_cdms = false
-          official_build = true
-          chrome_public_manifest_package = "org.chromium.chrome.beta"
-          enable_subresource_filter = true
-          ARG_EOF
-
-      - name: 12. Processar com GN
-        run: |
-          cd ~/revamp-browser/src
-          gn gen out/Default
-
-      - name: 13. Compilar APK com Ninja
-        run: |
-          cd ~/revamp-browser/src
-          ninja -C out/Default chrome_public_apk
-      
-      - name: 14. Enviar APK como Artefato
+      - name: Salvar APK nos Artefatos do GitHub
         uses: actions/upload-artifact@v4
         with:
-          name: RevampBrowser-APK
-          path: ~/revamp-browser/src/out/Default/apks/*.apk
+          name: ArchWM-Wayland-Final
+          path: final_apk/*.apk
