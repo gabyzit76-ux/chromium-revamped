@@ -50,15 +50,16 @@ jobs:
       - name: 8. Aplicar Marca Revamp Browser
         run: |
           cd ~/revamp-browser/src
-          sed -i 's/<string name="app_name">Chromium<\/string>/<string name="app_name">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
-          sed -i 's/<string name="app_name_beta">Chromium Beta<\/string>/<string name="app_name_beta">Revamp Browser<\/string>/g' chrome/android/java/res/values/channel_constants.xml || true
+          find chrome/android/java -name "channel_constants.xml" -exec sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">Revamp Browser<\/string>/g' {} + || true
+          find chrome/android/java -name "channel_constants.xml" -exec sed -i 's/<string name="app_name_beta">.*<\/string>/<string name="app_name_beta">Revamp Browser<\/string>/g' {} + || true
 
       - name: 9. Injetar Ícones (Se Existirem)
         run: |
           cd ~/revamp-browser/src
           RESOURCE_DIR="chrome/android/java/res_chromium_beta"
           if [ -d "$GITHUB_WORKSPACE/meus_icones/res" ]; then
-            cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/" || true
+            mkdir -p "$RESOURCE_DIR"
+            cp -rf "$GITHUB_WORKSPACE/meus_icones/res/"* "$RESOURCE_DIR/"
           fi
 
       - name: 10. Redirecionar Nova Guia
@@ -119,4 +120,3 @@ jobs:
         with:
           name: RevampBrowser-APK
           path: ~/revamp-browser/src/out/Default/apks/*.apk
-          
