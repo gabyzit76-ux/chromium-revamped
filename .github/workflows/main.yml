@@ -23,9 +23,14 @@ jobs:
       - name: 4. Configurar Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 5. Renomear Aplicacao para Revamp Konsole GUI
+      - name: 5. Personalizar ID do App e Nome para Revamp Konsole GUI
         run: |
           cd ~/termux-src
+          
+          # Renomear o ID do pacote para evitar conflito de "Pacote Inválido" com o Termux original
+          find app/ -type f \( -name "build.gradle*" -o -name "AndroidManifest.xml" \) -exec sed -i 's/com.termux/com.revamp.konsole.gui/g' {} + || true
+          
+          # Trocar o nome de exibição nas strings do Android
           find app/src/main/res -name "strings.xml" -exec sed -i 's/<string name="app_name">Termux<\/string>/<string name="app_name">Revamp Konsole GUI<\/string>/g' {} + || true
 
       - name: 6. Injetar Icones Personalizados
@@ -60,7 +65,7 @@ jobs:
           echo 'echo "export TERM=xterm-256color\nexport DISPLAY=:0\nexport CHROME_BIN=/usr/bin/chromium-browser\nalias open=revamp-open\nalias chrome=\"chromium-browser --headless --disable-gpu\"\nalias revamp=\"echo Revamp Konsole GUI\"\nPROMPT=\"%F{cyan}󰄛 revamp-gui%f:%F{yellow}%~%f %# \"" > ~/.zshrc' >> "$ENTRY"
           echo 'export DISPLAY=:0' >> "$ENTRY"
           echo 'export PULSE_SERVER=127.0.0.1' >> "$ENTRY"
-          echo 'if [ -f "/data/data/com.termux/files/usr/share/wallpaper.jpg" ]; then feh --bg-fill /data/data/com.termux/files/usr/share/wallpaper.jpg & fi' >> "$ENTRY"
+          echo 'if [ -f "/data/data/com.revamp.konsole.gui/files/usr/share/wallpaper.jpg" ]; then feh --bg-fill /data/data/com.revamp.konsole.gui/files/usr/share/wallpaper.jpg & fi' >> "$ENTRY"
           echo 'exec startxfce4' >> "$ENTRY"
           chmod +x "$ENTRY"
 
@@ -69,7 +74,7 @@ jobs:
           BOOT_DIR="$HOME/termux-src/app/src/main/assets/boot"
           mkdir -p "$BOOT_DIR"
           echo '#!/bin/sh' > "$BOOT_DIR/boot.sh"
-          echo 'exec sh /data/data/com.termux/files/usr/entrypoint.sh' >> "$BOOT_DIR/boot.sh"
+          echo 'exec sh /data/data/com.revamp.konsole.gui/files/usr/entrypoint.sh' >> "$BOOT_DIR/boot.sh"
           chmod +x "$BOOT_DIR/boot.sh"
 
       - name: 9. Aceitar Licencas do Android SDK
