@@ -64,45 +64,15 @@ jobs:
           cd chromium/src
           autoninja -C out/Default monochrome_public_apk
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Revamp-Stable-APK
-          path: chromium/src/out/Default/apks/MonochromePublic.apk
-          
-      - name: Install Build Dependencies
+      - name: Prepare APK for Upload
         run: |
-          cd chromium/src
-          sudo ./build/install-build-deps-android.sh --no-prompt
-
-      - name: Rename App to Revamp Safely
-        run: |
-          cd chromium/src
-          # Altera com segurança o nome principal do produto para Revamp no Android
-          if [ -f "chrome/android/java/strings/android_chrome_strings.grd" ]; then
-            sed -i 's/>Chromium</>Revamp</g' chrome/android/java/strings/android_chrome_strings.grd
-          fi
-
-      - name: Generate GN Args (Stable)
-        run: |
-          cd chromium/src
-          gn gen out/Default --args='
-            target_os = "android"
-            target_cpu = "arm64"
-            is_debug = false
-            is_component_build = false
-            symbol_level = 0
-            enable_nacl = false
-          '
-
-      - name: Compile Stable APK (All Cores / Autoninja)
-        run: |
-          cd chromium/src
-          autoninja -C out/Default monochrome_public_apk
+          cd chromium/src/out/Default/apks
+          # Renomeia o APK gerado para Revamp.apk para facilitar na hora de baixar
+          mv MonochromePublic.apk Revamp.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Revamp-Stable-APK
-          path: chromium/src/out/Default/apks/MonochromePublic.apk
+          path: chromium/src/out/Default/apks/Revamp.apk
           
