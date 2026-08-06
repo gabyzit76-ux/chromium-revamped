@@ -1,56 +1,70 @@
-name: Compilar Arch-WM APK (Definitivo)
+name: Compile Revamp
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout do Repositório
-        uses: actions/checkout@v4
-
-      - name: Validar Arquivos na Raiz
-        run: |
-          echo "Verificando se main.py e buildozer.spec existem:"
-          ls -la
-
-      - name: Configurar Java 21 Recente
-        uses: actions/setup-java@v5
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          check-latest: true
+          root-reserve-mb: 10240
+          swap-size-mb: 4096
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
 
-      - name: Configurar Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Instalar Dependências e Buildozer
+      - name: Install Depot Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y \
-            git zip unzip python3-pip autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libffi-dev libssl-dev \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
-          pip install --upgrade pip
-          pip install --upgrade buildozer cython
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$PWD/depot_tools" >> $GITHUB_PATH
 
-      - name: Executar Compilação do APK
+      - name: Fetch Chromium Source (Fast / Shallow)
         run: |
-          buildozer android release
+          mkdir chromium && cd chromium
+          fetch --nohooks --no-history --no-tags chromium
 
-      - name: Organizar Artefatos Binários
+      - name: Install Build Dependencies
         run: |
-          mkdir -p final_apk
-          cp bin/*.apk final_apk/
+          cd chromium/src
+          sudo ./build/install-build-deps.sh --no-prompt --no-syms
 
-      - name: Salvar APK nos Artefatos do GitHub
+      - name: Run GClient Hooks
+        run: |
+          cd chromium/src
+          gclient runhooks --jobs=16
+
+      - name: Rename Chromium to Revamp
+        run: |
+          cd chromium/src
+          if [ -f "chrome/app/chromium_strings.grd" ]; then
+            sed -i 's/<message name="IDS_PRODUCT_NAME" desc="The name of the application">Chromium<\/message>/<message name="IDS_PRODUCT_NAME" desc="The name of the application">Revamp<\/message>/g' chrome/app/chromium_strings.grd
+          fi
+
+      - name: Generate GN Args
+        run: |
+          cd chromium/src
+          gn gen out/Default --args='
+            is_debug = false
+            is_component_build = false
+            symbol_level = 0
+            enable_nacl = false
+            enable_remoting = false
+            enable_vr = false
+          '
+
+      - name: Compile Revamp (Autoninja)
+        run: |
+          cd chromium/src
+          autoninja -C out/Default chrome
+
+      - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ArchWM-Wayland-Final
-          path: final_apk/*.apk
+          name: Revamp-Binary-Linux
+          path: chromium/src/out/Default/chrome
           
