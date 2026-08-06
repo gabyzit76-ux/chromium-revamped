@@ -1,70 +1,73 @@
-name: Compile Revamp
+name: Compile Revamp Stable APK (Max Resources)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Maximize build space
+      - name: Maximize build space (Full Allocation)
         uses: easimon/maximize-build-space@v10
         with:
-          root-reserve-mb: 10240
-          swap-size-mb: 4096
+          root-reserve-mb: 1024
+          swap-size-mb: 8192
           remove-dotnet: 'true'
-          remove-android: 'true'
+          remove-android: 'false'
           remove-haskell: 'true'
           remove-codeql: 'true'
+          remove-docker: 'true'
+          remove-large-packages: 'true'
 
       - name: Install Depot Tools
         run: |
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$PWD/depot_tools" >> $GITHUB_PATH
 
-      - name: Fetch Chromium Source (Fast / Shallow)
+      - name: Fetch Chromium Source
         run: |
           mkdir chromium && cd chromium
-          fetch --nohooks --no-history --no-tags chromium
+          fetch --nohooks --no-history --no-tags android
+
+      - name: Config GClient for Android (Max Parallelism)
+        run: |
+          cd chromium
+          echo "target_os = ['android']" >> .gclient
+          gclient sync --with_branch_heads --with_tags --jobs=32
 
       - name: Install Build Dependencies
         run: |
           cd chromium/src
-          sudo ./build/install-build-deps.sh --no-prompt --no-syms
+          sudo ./build/install-build-deps-android.sh --no-prompt
 
-      - name: Run GClient Hooks
+      - name: Rename App to Revamp Safely
         run: |
           cd chromium/src
-          gclient runhooks --jobs=16
-
-      - name: Rename Chromium to Revamp
-        run: |
-          cd chromium/src
-          if [ -f "chrome/app/chromium_strings.grd" ]; then
-            sed -i 's/<message name="IDS_PRODUCT_NAME" desc="The name of the application">Chromium<\/message>/<message name="IDS_PRODUCT_NAME" desc="The name of the application">Revamp<\/message>/g' chrome/app/chromium_strings.grd
+          # Altera com segurança o nome principal do produto para Revamp no Android
+          if [ -f "chrome/android/java/strings/android_chrome_strings.grd" ]; then
+            sed -i 's/>Chromium</>Revamp</g' chrome/android/java/strings/android_chrome_strings.grd
           fi
 
-      - name: Generate GN Args
+      - name: Generate GN Args (Stable)
         run: |
           cd chromium/src
           gn gen out/Default --args='
+            target_os = "android"
+            target_cpu = "arm64"
             is_debug = false
             is_component_build = false
             symbol_level = 0
             enable_nacl = false
-            enable_remoting = false
-            enable_vr = false
           '
 
-      - name: Compile Revamp (Autoninja)
+      - name: Compile Stable APK (All Cores / Autoninja)
         run: |
           cd chromium/src
-          autoninja -C out/Default chrome
+          autoninja -C out/Default monochrome_public_apk
 
-      - name: Upload Binary Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Revamp-Binary-Linux
-          path: chromium/src/out/Default/chrome
+          name: Revamp-Stable-APK
+          path: chromium/src/out/Default/apks/MonochromePublic.apk
           
