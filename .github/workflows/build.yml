@@ -1,78 +1,83 @@
-name: Compile Revamp Stable APK (Max Resources)
+name: Build GoogleOS 17 GSI
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-android:
-    runs-on: ubuntu-24.04
+  build:
+    runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space (Full Allocation)
-        uses: easimon/maximize-build-space@v10
-        with:
-          root-reserve-mb: 1024
-          swap-size-mb: 8192
-          remove-dotnet: 'true'
-          remove-android: 'false'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker: 'true'
-          remove-large-packages: 'true'
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install Depot Tools
+      - name: Maximizar Espaço em Disco
         run: |
-          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          echo "$PWD/depot_tools" >> $GITHUB_PATH
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo apt-get clean
 
-      - name: Fetch Chromium Source
+      - name: Dependências do Sistema
         run: |
-          mkdir chromium && cd chromium
-          fetch --nohooks --no-history --no-tags android
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib \
+            gcc-multilib git git-lfs gnupg gperf lib32ncurses5-dev lib32z1-dev \
+            libc6-dev libcap-dev libexpat1-dev libgl1-mesa-dev libgmp-dev libmpc-dev \
+            libmpfr-dev libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils \
+            lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
+            python3 python-is-python3 android-sdk-platform-tools simg2img
 
-      - name: Config GClient for Android (Max Parallelism)
+      - name: Baixar 'repo'
         run: |
-          cd chromium
-          echo "target_os = ['android']" >> .gclient
-          gclient sync --with_branch_heads --with_tags --jobs=32
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Install Build Dependencies
+      - name: Sincronizar Fonte Base GSI
         run: |
-          cd chromium/src
-          sudo ./build/install-build-deps-android.sh --no-prompt
+          mkdir -p ~/gsi
+          cd ~/gsi
+          repo init -u https://github.com/TrebleDroid/platform_manifest.git -b android-13.0 --depth=1
+          repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j$(nproc)
 
-      - name: Rename App to Revamp Safely
+      - name: Alterar Versão e Nome Direto no Core da Build
         run: |
-          cd chromium/src
-          if [ -f "chrome/android/java/strings/android_chrome_strings.grd" ]; then
-            sed -i 's/>Chromium</>Revamp</g' chrome/android/java/strings/android_chrome_strings.grd
-          fi
+          cd ~/gsi
 
-      - name: Generate GN Args (Stable)
+          # 1. Modifica o BUILD_ID e nome do SO no sistema core
+          echo "BUILD_ID=GOOGLEOS17" > build/make/core/build_id.mk
+
+          # 2. Força a versão do Android no Makefile principal
+          sed -i 's/PLATFORM_VERSION_CODENAME := .*/PLATFORM_VERSION_CODENAME := REL/g' build/make/core/version_defaults.mk
+          sed -i 's/PLATFORM_VERSION := .*/PLATFORM_VERSION := 17/g' build/make/core/version_defaults.mk
+          sed -i 's/PLATFORM_SDK_VERSION := .*/PLATFORM_SDK_VERSION := 36/g' build/make/core/version_defaults.mk
+
+          # 3. Altera a marca e o modelo exibidos nativamente
+          sed -i 's/PRODUCT_BRAND := .*/PRODUCT_BRAND := Google/g' build/make/target/product/full_base.mk
+          sed -i 's/PRODUCT_NAME := .*/PRODUCT_NAME := GoogleOS_17/g' build/make/target/product/full_base.mk
+          sed -i 's/PRODUCT_DEVICE := .*/PRODUCT_DEVICE := GoogleOS/g' build/make/target/product/full_base.mk
+
+          # 4. Injeta Overrides das propriedades direto no makefile de system/core
+          echo 'PRODUCT_PROPERTY_OVERRIDES += \' >> build/make/target/product/full_base.mk
+          echo '    ro.build.version.release=17 \' >> build/make/target/product/full_base.mk
+          echo '    ro.build.version.release_or_codename=17 \' >> build/make/target/product/full_base.mk
+          echo '    ro.build.display.id=GoogleOS 17 (Pixel Edition) \' >> build/make/target/product/full_base.mk
+          echo '    ro.config.marketing_name=GoogleOS 17' >> build/make/target/product/full_base.mk
+
+      - name: Compilar GSI
         run: |
-          cd chromium/src
-          gn gen out/Default --args='
-            target_os = "android"
-            target_cpu = "arm64"
-            is_debug = false
-            is_component_build = false
-            symbol_level = 0
-            enable_nacl = false
-          '
+          cd ~/gsi
+          source build/envsetup.sh
+          lunch treble_arm64_bgN-userdebug
+          make systemimage -j$(nproc)
 
-      - name: Compile Stable APK (All Cores / Autoninja)
+      - name: Compactar Imagem Final
         run: |
-          cd chromium/src
-          autoninja -C out/Default monochrome_public_apk
+          cd ~/gsi/out/target/product/phong/
+          img2simg system.img GoogleOS_17_arm64_bgN.img
+          xz -z -3 GoogleOS_17_arm64_bgN.img
 
-      - name: Prepare APK for Upload
-        run: |
-          cd chromium/src/out/Default/apks
-          # Renomeia o APK gerado para Revamp.apk para facilitar na hora de baixar
-          mv MonochromePublic.apk Revamp.apk
-
-      - name: Upload APK
+      - name: Enviar Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Revamp-Stable-APK
-          path: chromium/src/out/Default/apks/Revamp.apk
-          
+          name: GoogleOS-17-GSI
+          path: ~/gsi/out/target/product/phong/GoogleOS_17_arm64_bgN.img.xz
